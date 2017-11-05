@@ -63,16 +63,16 @@ public class CommandLineArgs {
     }
 
     public static final String READ_THROUGHPUT_RATIO = "--readThroughputRatio";
-    @Parameter(names = READ_THROUGHPUT_RATIO, description = "Percentage of total read throughput to scan the source table", required = true)
-    private double readThroughputRatio;
+    @Parameter(names = READ_THROUGHPUT_RATIO, description = "Percentage of total read throughput to scan the source table", required = false)
+    private double readThroughputRatio = 100;
 
     public double getReadThroughputRatio() {
         return readThroughputRatio;
     }
 
     public static final String WRITE_THROUGHPUT_RATIO = "--writeThroughputRatio";
-    @Parameter(names = WRITE_THROUGHPUT_RATIO, description = "Percentage of total write throughput to write the destination table", required = true)
-    private double writeThroughputRatio;
+    @Parameter(names = WRITE_THROUGHPUT_RATIO, description = "Percentage of total write throughput to write the destination table", required = false)
+    private double writeThroughputRatio = 100;
 
     public double getWriteThroughputRatio() {
         return writeThroughputRatio;
@@ -109,4 +109,33 @@ public class CommandLineArgs {
     public boolean getConsistentScan() {
         return consistentScan;
     }
+
+    public static final String SOURCE_ACCESS_KEY = "--sourceAccessKey";
+    @Parameter(names = SOURCE_ACCESS_KEY, description = "source dynamodb's access key",required = true)
+    private String sourceAccessKey = "";
+    public String getSourceAccessKey() {
+        return sourceAccessKey;
+    }
+
+    public static final String SOURCE_SECRET_KEY = "--sourceSecretKey";
+    @Parameter(names = SOURCE_SECRET_KEY, description = "source dynamodb's secret key",required = true)
+    private String sourceSecretKey = "";
+    public String getSourceSecretKey() {
+        return sourceSecretKey;
+    }
+
+    public static final String DEST_ACCESS_KEY = "--destAccessKey";
+    @Parameter(names = DEST_ACCESS_KEY, description = "dest dynamodb's access key",required = true)
+    private String destAccessKey = "";
+    public String getDestAccessKey() {
+        return destAccessKey;
+    }
+
+    public static final String DEST_SECRET_KEY = "--destSecretKey";
+    @Parameter(names = DEST_SECRET_KEY, description = "dest dynamodb's secret key",required = true)
+    private String destSecretKey = "";
+    public String getDestSecretKey() {
+        return destSecretKey;
+    }
+
 }

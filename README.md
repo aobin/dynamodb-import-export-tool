@@ -1,6 +1,8 @@
 # DynamoDB Import Export Tool
 The DynamoDB Import Export Tool is designed to perform parallel scans on the source table, store scan results in a queue, then consume the queue by writing the items asynchronously to a destination table.
-
+<br/>
+运行参数<br/>
+java -jar dynamodb-import-export-tool-1.0.1.jar --sourceAccessKey AKIAPLRSH3SFWQ2UK3SA --sourceSecretKey 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 --sourceEndpoint dynamodb.cn-north-1.amazonaws.com.cn --sourceTable Token --destAccessKey 123 --destSecretKey 123 --destinationEndpoint http://localhost:8000  --destinationTable Token
 ## Requirements ##
 * Maven
 * JRE 1.7+

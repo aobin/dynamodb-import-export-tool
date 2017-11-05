@@ -14,17 +14,8 @@
  */
 package com.amazonaws.dynamodb.bootstrap;
 
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-
 import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.dynamodb.bootstrap.constants.BootstrapConstants;
 import com.amazonaws.dynamodb.bootstrap.exception.NullReadCapacityException;
 import com.amazonaws.dynamodb.bootstrap.exception.SectionOutOfRangeException;
@@ -32,33 +23,41 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterException;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import java.util.concurrent.*;
 
 /**
  * The interface that parses the arguments, and begins to transfer data from one
  * DynamoDB table to another
  */
-public class CommandLineInterface {
+public class CommandLineInterface
+{
 
     /**
      * Logger for the DynamoDBBootstrapWorker.
      */
-    private static final Logger LOGGER = LogManager
-            .getLogger(CommandLineInterface.class);
+    private static final Logger LOGGER = LogManager.getLogger(CommandLineInterface.class);
 
     /**
      * Main class to begin transferring data from one DynamoDB table to another
      * DynamoDB table.
-     * 
+     *
      * @param args
      */
-    public static void main(String[] args) {
+    public static void main(String[] args)
+    {
         CommandLineArgs params = new CommandLineArgs();
         JCommander cmd = new JCommander(params);
 
-        try {
+        try
+        {
             // parse given arguments
             cmd.parse(args);
-        } catch (ParameterException e) {
+        }
+        catch (ParameterException e)
+        {
             LOGGER.error(e);
             JCommander.getConsole().println(e.getMessage());
             cmd.usage();
@@ -66,7 +65,8 @@ public class CommandLineInterface {
         }
 
         // show usage information if help flag exists
-        if (params.getHelp()) {
+        if (params.getHelp())
+        {
             cmd.usage();
             return;
         }
@@ -79,53 +79,65 @@ public class CommandLineInterface {
         final int maxWriteThreads = params.getMaxWriteThreads();
         final boolean consistentScan = params.getConsistentScan();
 
+        String sourceAccessKey = params.getSourceAccessKey();
+        String sourceSecretKey = params.getSourceSecretKey();
+        String destAccessKey = params.getDestAccessKey();
+        String destSecretKey = params.getDestSecretKey();
+
         final ClientConfiguration sourceConfig = new ClientConfiguration().withMaxConnections(BootstrapConstants.MAX_CONN_SIZE);
         final ClientConfiguration destinationConfig = new ClientConfiguration().withMaxConnections(BootstrapConstants.MAX_CONN_SIZE);
 
-        final AmazonDynamoDBClient sourceClient = new AmazonDynamoDBClient(
-                new DefaultAWSCredentialsProviderChain(), sourceConfig);
-        final AmazonDynamoDBClient destinationClient = new AmazonDynamoDBClient(
-                new DefaultAWSCredentialsProviderChain(), destinationConfig);
+        /*final AmazonDynamoDBClient sourceClient = new AmazonDynamoDBClient(
+                new DefaultAWSCredentialsProviderChain(), sourceConfig);*/
+
+        BasicAWSCredentials sourceBasicAWSCredentials = new BasicAWSCredentials(sourceAccessKey, sourceSecretKey);
+        final AmazonDynamoDBClient sourceClient = new AmazonDynamoDBClient(sourceBasicAWSCredentials, sourceConfig);
         sourceClient.setEndpoint(sourceEndpoint);
+
+        BasicAWSCredentials destBasicAWSCredentials = new BasicAWSCredentials(destAccessKey, destSecretKey);
+        final AmazonDynamoDBClient destinationClient = new AmazonDynamoDBClient(destBasicAWSCredentials, destinationConfig);
         destinationClient.setEndpoint(destinationEndpoint);
 
-        TableDescription readTableDescription = sourceClient.describeTable(
-                sourceTable).getTable();
-        TableDescription writeTableDescription = destinationClient
-                .describeTable(destinationTable).getTable();
+        TableDescription readTableDescription = sourceClient.describeTable(sourceTable).getTable();
+        TableDescription writeTableDescription = destinationClient.describeTable(destinationTable).getTable();
         int numSegments = 10;
-        try {
-            numSegments = DynamoDBBootstrapWorker
-                    .getNumberOfSegments(readTableDescription);
-        } catch (NullReadCapacityException e) {
-            LOGGER.warn("Number of segments not specified - defaulting to "
-                    + numSegments, e);
+        try
+        {
+            numSegments = DynamoDBBootstrapWorker.getNumberOfSegments(readTableDescription);
+        }
+        catch (NullReadCapacityException e)
+        {
+            LOGGER.warn("Number of segments not specified - defaulting to " + numSegments, e);
         }
 
-        final double readThroughput = calculateThroughput(readTableDescription,
-                readThroughputRatio, true);
-        final double writeThroughput = calculateThroughput(
-                writeTableDescription, writeThroughputRatio, false);
+        final double readThroughput = calculateThroughput(readTableDescription, readThroughputRatio, true);
+        final double writeThroughput = calculateThroughput(writeTableDescription, writeThroughputRatio, false);
 
-        try {
+        try
+        {
             ExecutorService sourceExec = getSourceThreadPool(numSegments);
             ExecutorService destinationExec = getDestinationThreadPool(maxWriteThreads);
-            DynamoDBConsumer consumer = new DynamoDBConsumer(destinationClient,
-                    destinationTable, writeThroughput, destinationExec);
+            DynamoDBConsumer consumer = new DynamoDBConsumer(destinationClient, destinationTable, writeThroughput, destinationExec);
 
-            final DynamoDBBootstrapWorker worker = new DynamoDBBootstrapWorker(
-                    sourceClient, readThroughput, sourceTable, sourceExec,
-                    params.getSection(), params.getTotalSections(), numSegments, consistentScan);
+            final DynamoDBBootstrapWorker worker =
+                    new DynamoDBBootstrapWorker(sourceClient, readThroughput, sourceTable, sourceExec, params.getSection(),
+                            params.getTotalSections(), numSegments, consistentScan);
 
             LOGGER.info("Starting transfer...");
             worker.pipe(consumer);
             LOGGER.info("Finished Copying Table.");
-        } catch (ExecutionException e) {
+        }
+        catch (ExecutionException e)
+        {
             LOGGER.error("Encountered exception when executing transfer.", e);
-        } catch (InterruptedException e) {
+        }
+        catch (InterruptedException e)
+        {
             LOGGER.error("Interrupted when executing transfer.", e);
             System.exit(1);
-        } catch (SectionOutOfRangeException e) {
+        }
+        catch (SectionOutOfRangeException e)
+        {
             LOGGER.error("Invalid section parameter", e);
         }
     }
@@ -134,47 +146,45 @@ public class CommandLineInterface {
      * returns the provisioned throughput based on the input ratio and the
      * specified DynamoDB table provisioned throughput.
      */
-    private static double calculateThroughput(
-            TableDescription tableDescription, double throughputRatio,
-            boolean read) {
-        if (read) {
-            return tableDescription.getProvisionedThroughput()
-                    .getReadCapacityUnits() * throughputRatio;
+    private static double calculateThroughput(TableDescription tableDescription, double throughputRatio, boolean read)
+    {
+        if (read)
+        {
+            return tableDescription.getProvisionedThroughput().getReadCapacityUnits() * throughputRatio;
         }
-        return tableDescription.getProvisionedThroughput()
-                .getWriteCapacityUnits() * throughputRatio;
+        return tableDescription.getProvisionedThroughput().getWriteCapacityUnits() * throughputRatio;
     }
 
     /**
      * Returns the thread pool for the destination DynamoDB table.
      */
-    private static ExecutorService getDestinationThreadPool(int maxWriteThreads) {
+    private static ExecutorService getDestinationThreadPool(int maxWriteThreads)
+    {
         int corePoolSize = BootstrapConstants.DYNAMODB_CLIENT_EXECUTOR_CORE_POOL_SIZE;
-        if (corePoolSize > maxWriteThreads) {
+        if (corePoolSize > maxWriteThreads)
+        {
             corePoolSize = maxWriteThreads - 1;
         }
         final long keepAlive = BootstrapConstants.DYNAMODB_CLIENT_EXECUTOR_KEEP_ALIVE;
-        ExecutorService exec = new ThreadPoolExecutor(corePoolSize,
-                maxWriteThreads, keepAlive, TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(maxWriteThreads),
-                new ThreadPoolExecutor.CallerRunsPolicy());
+        ExecutorService exec = new ThreadPoolExecutor(corePoolSize, maxWriteThreads, keepAlive, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<Runnable>(maxWriteThreads), new ThreadPoolExecutor.CallerRunsPolicy());
         return exec;
     }
 
     /**
      * Returns the thread pool for the source DynamoDB table.
      */
-    private static ExecutorService getSourceThreadPool(int numSegments) {
+    private static ExecutorService getSourceThreadPool(int numSegments)
+    {
         int corePoolSize = BootstrapConstants.DYNAMODB_CLIENT_EXECUTOR_CORE_POOL_SIZE;
-        if (corePoolSize > numSegments) {
+        if (corePoolSize > numSegments)
+        {
             corePoolSize = numSegments - 1;
         }
 
         final long keepAlive = BootstrapConstants.DYNAMODB_CLIENT_EXECUTOR_KEEP_ALIVE;
-        ExecutorService exec = new ThreadPoolExecutor(corePoolSize,
-                numSegments, keepAlive, TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(numSegments),
-                new ThreadPoolExecutor.CallerRunsPolicy());
+        ExecutorService exec = new ThreadPoolExecutor(corePoolSize, numSegments, keepAlive, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<Runnable>(numSegments), new ThreadPoolExecutor.CallerRunsPolicy());
         return exec;
     }
 
